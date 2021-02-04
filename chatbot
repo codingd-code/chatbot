@@ -1,0 +1,448 @@
+
+
+#!/usr/bin/env python
+import sys
+if sys.version_info[0] >= 3:
+    import PySimpleGUI as sg
+else:
+    import PySimpleGUI27 as sg
+
+import math
+import httpx
+from gensim.summarization.textcleaner import split_sentences
+from rake_nltk import Rake
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import PunktSentenceTokenizer
+import sys
+from bs4 import BeautifulSoup
+import requests
+import heapq
+import nltk
+from gensim.summarization.summarizer import summarize
+import csv
+import time
+import socks
+import socket
+import random
+from random import choice
+import io
+from googletrans import Translator
+import numpy as np
+import string
+#import urllib.request
+import urllib.request as urllib2
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
+from sklearn.metrics import adjusted_rand_score
+from sklearn.feature_extraction.text import HashingVectorizer
+import colorama
+from colorama import init
+from colorama import Fore, Back, Style
+from paraphraser import paraphrase
+import sqlite3
+import base64
+import subprocess
+import platform
+import heapq
+from googlesearch import search
+
+init()
+timeout = httpx.Timeout(5)
+
+
+conn = sqlite3.connect("bot.db")
+c = conn.cursor()
+translator = Translator()
+
+
+def get_tor_session():
+    session = requests.session()
+    # Tor uses the 9050 port as the default socks port
+    session.proxies = {'http':  'socks5://127.0.0.1:9150',
+                       'https': 'socks5://127.0.0.1:9150'}
+    return session
+
+
+def f(seq):
+    seen = set()
+    return [x for x in seq if x not in seen and not seen.add(x)]
+
+
+def summary(x, perc):
+    if len(split_sentences(x)) > 10:
+        test_summary = summarize(x, ratio=perc, split=True)
+        test_summary = '\n'.join(map(str, f(test_summary)))
+    else:
+        test_summary = x
+    return test_summary
+
+
+desktop_agents = ['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
+                  'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
+                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/602.2.14 (KHTML, like Gecko) Version/10.0.1 Safari/602.2.14',
+                  'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36',
+                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36',
+                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36',
+                  'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36',
+                  'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
+                  'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0']
+
+
+def random_headers():
+    return {'User-Agent': choice(desktop_agents), 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'}
+
+# https://stackoverflow.com/questions/14596884/remove-text-between-and-in-python
+
+
+def remove_text_inside_brackets(text, brackets="[]"):
+    count = [0] * (len(brackets) // 2)  # count open/close brackets
+    saved_chars = []
+    for character in text:
+        for i, b in enumerate(brackets):
+            if character == b:  # found bracket
+                kind, is_close = divmod(i, 2)
+                count[kind] += (-1)**is_close  # `+1`: open, `-1`: close
+                if count[kind] < 0:  # unbalanced bracket
+                    count[kind] = 0  # keep it
+                else:  # found bracket to remove
+                    break
+        else:  # character is not a [balanced] bracket
+            if not any(count):  # outside brackets
+                saved_chars.append(character)
+    return ''.join(saved_chars)
+
+
+def summary_nltk(article_text):
+    sentence_list = nltk.sent_tokenize(article_text)
+
+    stopwords = nltk.corpus.stopwords.words('english')
+
+    word_frequencies = {}
+    for word in nltk.word_tokenize(formatted_article_text):
+        if word not in stopwords:
+            if word not in word_frequencies.keys():
+                word_frequencies[word] = 1
+            else:
+                word_frequencies[word] += 1
+
+    maximum_frequncy = max(word_frequencies.values())
+
+    for word in word_frequencies.keys():
+        word_frequencies[word] = (word_frequencies[word]/maximum_frequncy)
+
+    sentence_scores = {}
+    for sent in sentence_list:
+        for word in nltk.word_tokenize(sent.lower()):
+            if word in word_frequencies.keys():
+                if len(sent.split(' ')) < 30:
+                    if sent not in sentence_scores.keys():
+                        sentence_scores[sent] = word_frequencies[word]
+                    else:
+                        sentence_scores[sent] += word_frequencies[word]
+
+    summary_sentences = heapq.nlargest(
+        7, sentence_scores, key=sentence_scores.get)
+
+    summary = ' '.join(summary_sentences)
+    return summary
+
+
+def databasefunct(user_input):
+    final_txt = ' '
+    totality_text = []
+    jarvis_response = ''
+    article_sentences = []
+    seq = []
+    rake = Rake()
+
+    kw = rake.extract_keywords_from_text(user_input)
+
+    seq = rake.get_ranked_phrases()
+    vectorizer = TfidfVectorizer(sublinear_tf=True, encoding='latin-1', stop_words='english')
+  
+    X = vectorizer.fit_transform(seq)
+
+    true_k = 1
+    km = KMeans(n_clusters=true_k, init='k-means++',
+                max_iter=100, n_init=1, random_state=1)
+    y = km.fit(X)
+
+    order_centroids = km.cluster_centers_.argsort()[:, ::-1]
+    terms = vectorizer.get_feature_names()
+    for i in range(true_k):
+        for ind in order_centroids[i, :2]:
+            test = ' %s' % terms[ind]
+            seq.append(test)
+
+    c.execute('select * from conversation')
+    records = c.fetchall()
+
+    for record in records:
+        ask = record[0]
+        ask = base64.b64decode(ask)
+        ask = str(ask, 'utf-8')
+        answer = record[1]
+        answer = base64.b64decode(answer)
+        answer = str(answer, 'utf-8')
+
+        length_temp_list = len(seq)-1
+        for k in range(0, length_temp_list):
+            text = seq[k]
+            if text in answer:
+                totality_text.append(answer)
+    first_sum = ''.join([str(item) for item in totality_text])
+
+    sent_tokenizer = nltk.data.load('nltk:tokenizers/punkt/english.pickle')
+    article_sentences = sent_tokenizer.tokenize(first_sum.strip(), realign_boundaries=True)
+
+    article_sentences.append(user_input)
+    article_words = word_tokenize(first_sum)
+
+    wnlemmatizer = nltk.stem.WordNetLemmatizer()
+    first_sum = [wnlemmatizer.lemmatize(word) for word in first_sum]
+    ' '.join(first_sum)
+    # sublinear_tf=True
+    word_vectorizer = TfidfVectorizer(sublinear_tf=True, min_df=1, stop_words="english")
+    word_vectorizer.fit(article_sentences)
+    tfidf = word_vectorizer.transform(article_sentences)
+    similar_vector_values = tfidf * tfidf.T
+    similar_vector_values.toarray()
+    arr = similar_vector_values.toarray()
+    np.fill_diagonal(arr, np.nan)
+    input_idx = article_sentences.index(user_input)
+    result_idx = np.nanargmax(arr[input_idx])
+    vector_matched = article_sentences[result_idx]
+    if vector_matched and not vector_matched.isspace():
+        return vector_matched
+    else:
+        jarvis_response = "I am sorry, I could not understand you."
+        return jarvis_response
+
+
+def mainfunct(user_input):
+
+    session = get_tor_session()
+    rake = Rake()
+
+    kw = rake.extract_keywords_from_text(user_input)
+
+    ranked_phrases = rake.get_ranked_phrases()
+    vectorizer = TfidfVectorizer(encoding='latin-1', stop_words='english')
+  
+
+    X = vectorizer.fit_transform(ranked_phrases)
+
+    true_k = 1
+    km = KMeans(n_clusters=true_k, init='k-means++',
+                max_iter=100, n_init=1, random_state=1)
+    y = km.fit(X)
+    order_centroids = km.cluster_centers_.argsort()[:, ::-1]
+    terms = vectorizer.get_feature_names()
+    for i in range(true_k):
+        for ind in order_centroids[i, :10]:
+            test = ' %s' % terms[ind]
+            ranked_phrases.append(test)
+
+    length = len(ranked_phrases) - 1
+    final_txttxt = []
+    for i in range(0, length):
+        temp_list = []
+        url1 = 'https://en.wikipedia.org/wiki/{}'.format(ranked_phrases[i])
+        url2 = 'https://www.britannica.com/science/{}'.format(
+            ranked_phrases[i])
+        url3 = 'https://www.britannica.com/art/{}'.format(ranked_phrases[i])
+        url4 = 'https://www.britannica.com/biography/{}'.format(
+            ranked_phrases[i])
+        url5 = 'https://www.britannica.com/sports/{}'.format(ranked_phrases[i])
+        url6 = 'https://www.britannica.com/topic/{}'.format(ranked_phrases[i])
+        url7 = 'https://www.thefreedictionary.com/{}'.format(ranked_phrases[i])
+
+        temp_list.append(url1)
+        temp_list.append(url2)
+        temp_list.append(url3)
+        temp_list.append(url4)
+        temp_list.append(url5)
+        temp_list.append(url6)
+        temp_list.append(url7)
+    searchfor = user_input
+    for result in search(searchfor):
+        temp_list.append(result)
+
+        length_temp_list = len(temp_list) - 1
+        for k in range(0, length_temp_list):
+            # deadline = time.time() + 20.0
+
+            res = requests.get(temp_list[k], headers=random_headers())
+            pagetext = res.text
+            wiki = BeautifulSoup(pagetext, 'html.parser')
+            totality_text = []
+            for l in wiki.select('p'):
+
+                totality_text.append(l.getText())
+
+            final_txt = ''.join([str(item) for item in totality_text])
+            number_of_sentences = sent_tokenize(final_txt)
+            if len(number_of_sentences) > 2:
+                mysummary = summary(final_txt, 0.65)
+                return mysummary
+            elif len(number_of_sentences) < 2:
+                continue
+
+
+greeting_inputs = ("hey", "good morning", "good evening",
+                   "morning", "evening", "hi", "whatsup")
+greeting_responses = ["hey", "hey hows you?", "*nods*",
+                      "hello, how you doing", "hello", "Welcome, I am good and you"]
+
+
+def generate_greeting_response(greeting):
+    for token in greeting.split():
+        if token.lower() in greeting_inputs:
+            return random.choice(greeting_responses)
+
+
+def generate_not_understand():
+    sentences = []
+    reponse = "I am sorry, I could not understand you."
+    sentences = paraphrase(reponse)
+    sentence_item = random.choice(sentences)
+    return sentence_item
+
+
+def generate_response(user_input, first_sum):
+    jarvis_response = ''
+    article_sentences = []
+
+    first_sum = mainfunct(user_input)
+
+    sent_tokenizer = nltk.data.load('nltk:tokenizers/punkt/english.pickle')
+
+    if first_sum is None:
+        jarvis_response = jarvis_response + \
+            generate_not_understand()
+        return jarvis_response
+    else:
+        article_sentences = sent_tokenizer.tokenize(
+            first_sum.strip(), realign_boundaries=True)
+
+    article_sentences.append(user_input)
+    article_words = word_tokenize(first_sum)
+
+    wnlemmatizer = nltk.stem.WordNetLemmatizer()
+    first_sum = [wnlemmatizer.lemmatize(word) for word in first_sum]
+    ' '.join(first_sum)
+    # sublinear_tf=True
+    word_vectorizer = TfidfVectorizer(stop_words='english', ngram_range=(
+        1, 3), min_df=0.001, max_df=0.50, max_features=10000, use_idf=True)
+    word_vectorizer.fit(article_sentences)
+    tfidf = word_vectorizer.transform(article_sentences)
+    similar_vector_values = tfidf * tfidf.T
+    similar_vector_values.toarray()
+    arr = similar_vector_values.toarray()
+    np.fill_diagonal(arr, np.nan)
+    input_idx = article_sentences.index(user_input)
+    result_idx = np.nanargmax(arr[input_idx])
+    vector_matched = article_sentences[result_idx]
+
+    if vector_matched and not vector_matched.isspace():
+        sentences = []
+
+        jarvis_response = jarvis_response + \
+            article_sentences[result_idx]
+        if jarvis_response is None:
+            jarvis_response = jarvis_response + \
+                generate_not_understand()
+            return jarvis_response
+        else:
+            sentences = paraphrase(jarvis_response)
+            sentence_item = random.choice(sentences)
+            return sentence_item
+    else:
+        jarvis_response = jarvis_response + \
+            generate_not_understand()
+        return jarvis_response
+
+
+# give our window a spiffy set of colors
+sg.ChangeLookAndFeel('DarkGrey')
+
+layout = [[sg.Text('J.A.R.V.I.S : Just A Rather Very Intelligent System.', size=(60, 1))],
+          [sg.Output(size=(127, 30), font=('opensans 11'))],
+          [sg.Multiline(size=(85, 5), enter_submits=True, key='query'),
+           sg.Button('SEND', button_color=(
+               "white", "Black"), bind_return_key=True),
+           sg.Button('DB', button_color=(
+               "white", "Black"), bind_return_key=True),
+           sg.Button('EXIT', button_color=("white", "Black"))]]
+
+window = sg.Window('J.A.R.V.I.S',
+                   default_element_size=(30, 2),
+                   font=('opensans', ' 13'),
+                   default_button_element_size=(8, 2)).Layout(layout)
+
+# ---===--- Loop taking in user input and using it  --- #
+while True:
+    event, value = window.Read()
+    #c.execute("CREATE TABLE conversation (ask TEXT, answer TEXT)")
+    if event == 'SEND':
+        url = 'http://www.google.com/'
+        timeout = 5
+        try:
+            _ = requests.get(url, timeout=timeout)
+
+            query = value['query'].rstrip()
+            # EXECUTE YOUR COMMAND HERE
+            print('YOU : {}'.format(query))
+            user_input = query.lower()
+
+            first_sum = str(mainfunct(user_input))
+            if user_input == 'thanks' or user_input == 'thank you very much' or user_input == 'thank you':
+                continue_dialogue = False
+                print("J.A.R.V.I.S : Most welcome")
+            else:
+                if generate_greeting_response(user_input) != None:
+                    print("J.A.R.V.I.S : " +
+                          generate_greeting_response(user_input))
+                else:
+                    machine_response = generate_response(user_input, first_sum)
+                    clear_response = remove_text_inside_brackets(
+                        machine_response)
+                    print("J.A.R.V.I.S : " + clear_response)
+                    encodedBytes = base64.b64encode(user_input.encode("utf-8"))
+                    encodedStr = str(encodedBytes, "utf-8")
+                    encodedBot = base64.b64encode(
+                        clear_response.encode("utf-8"))
+                    encodedbot = str(encodedBot, "utf-8")
+                    c.execute(
+                        "insert into conversation (ask, answer) values (?, ?)", (encodedStr, encodedbot))
+                    conn.commit()
+        except requests.ConnectionError:
+            query = value['query'].rstrip()
+            # EXECUTE YOUR COMMAND HERE
+            print('YOU : {}'.format(query))
+            user_input = query.lower()
+            clear_response = databasefunct(user_input)
+            print("J.A.R.V.I.S : " + clear_response)
+    if event == 'DB':
+        c.execute('select * from conversation')
+        records = c.fetchall()
+
+        for record in records:
+            ask = record[0]
+            ask = base64.b64decode(ask)
+            ask = str(ask, 'utf-8')
+            answer = record[1]
+            answer = base64.b64decode(answer)
+            answer = str(answer, 'utf-8')
+            print("YOU : ", ask)
+            print("J.A.R.V.I.S : ", answer)
+
+    elif event in (None, 'EXIT'):            # quit if exit button or X
+        # conn.close()
+        break
+sys.exit(69)
+# https://github.com/PySimpleGUI/PySimpleGUI/blob/master/DemoPrograms%20old/Demo_Chat.py
+
